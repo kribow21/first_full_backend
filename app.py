@@ -3,8 +3,6 @@ import mariadb
 import json
 import dbcreds
 import sys
-conn= None
-cursor=None
 app = Flask(__name__)
 
 @app.route('/api/feed', methods = ['GET', 'POST', 'PATCH', 'DELETE'])
@@ -14,9 +12,19 @@ def feed_posts():
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM posts")
         all_posts = cursor.fetchall()
+        post_list = []
+        for post in all_posts:
+            postDict = {
+                "username" : post[0],
+                "id" : post[1],
+                "content" : post[2],
+                "time_created" : post[3]
+            }
+            post_list.append(postDict)
+
         cursor.close()
         conn.close()
-        return Response(json.dumps(all_posts, default=str),
+        return Response(json.dumps(post_list, default=str),
                                     mimetype='application/json',
                                     status=200)
     elif request.method == 'POST':
@@ -25,36 +33,20 @@ def feed_posts():
         post_username = post_data.get("username")
         post_content = post_data.get("content")
         post_date = post_data.get("time_created")
-        try:
-            conn = mariadb.connect(user=dbcreds.user,password=dbcreds.password,host=dbcreds.host,port=dbcreds.port,database=dbcreds.database)
-            cursor = conn.cursor()
-            cursor.execute("INSERT INTO posts(username, content, time_created) VALUES (?,?,?)",[post_username, post_content, post_date])
+        conn = mariadb.connect(user=dbcreds.user,password=dbcreds.password,host=dbcreds.host,port=dbcreds.port,database=dbcreds.database)
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO posts(username, content, time_created) VALUES (?,?,?)",[post_username, post_content, post_date])
+        if(cursor.rowcount ==1):
             conn.commit()
+            cursor.close()
+            conn.close()
             return Response("Sucessful post created",
-                            mimetype='text/plain',
-                            status=200)
-
-        except mariadb.DataError: 
-            print('Something went wrong with your data')
-        except mariadb.OperationalError:
-            print('Something wrong with the connection')
-        except mariadb.ProgrammingError:
-            print('Your query was wrong')
-        except mariadb.InternalError:
-            print("Something wrong in database")
-            return Response("Failed to create post",
-                            mimetype='text/plain',
+                        mimetype='text/plain',
+                        status=200)
+        else:
+            return Response("Something went wrong, post not created",
+                            mimetype="text/plain",
                             status=400)
-        finally:
-            if(cursor != None):
-                cursor.close()
-            else:
-                print('no cursor to begin with')
-            if(conn != None):    
-                conn.rollback()
-                conn.close()
-            else:
-                print('the connection never opened, nothing to close')
 
 
     elif request.method == 'PATCH':
@@ -73,21 +65,16 @@ def feed_posts():
                         status=200)
     elif request.method == 'DELETE':
         remove_data = request.json
-        print(remove_data)
+        user_id = remove_data.get("id")
         conn = mariadb.connect(user=dbcreds.user,password=dbcreds.password,host=dbcreds.host,port=dbcreds.port,database=dbcreds.database)
         cursor = conn.cursor()
-        cursor.execute("DELETE FROM posts WHERE id=?", [remove_data])
+        cursor.execute("DELETE FROM posts WHERE id=?",[user_id,])
         conn.commit()
         cursor.close()
         conn.close()
         return Response("Post deleted",
                         mimetype='text/plain',
                         status=200)
-
-
-
-
-
 
 
 
