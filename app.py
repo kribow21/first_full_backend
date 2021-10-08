@@ -3,51 +3,103 @@ import mariadb
 import json
 import dbcreds
 import sys
+
+conn= None
+cursor=None
+
 app = Flask(__name__)
 
 @app.route('/api/feed', methods = ['GET', 'POST', 'PATCH', 'DELETE'])
 def feed_posts():
     if request.method == 'GET':
-        conn = mariadb.connect(user=dbcreds.user,password=dbcreds.password,host=dbcreds.host,port=dbcreds.port,database=dbcreds.database)
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM posts")
-        all_posts = cursor.fetchall()
-        post_list = []
-        for post in all_posts:
-            postDict = {
-                "username" : post[0],
-                "id" : post[1],
-                "content" : post[2],
-                "time_created" : post[3]
-            }
-            post_list.append(postDict)
+        try:
+            conn = mariadb.connect(user=dbcreds.user,password=dbcreds.password,host=dbcreds.host,port=dbcreds.port,database=dbcreds.database)
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM posts")
+            all_posts = cursor.fetchall()
+            post_list = []
+            for post in all_posts:
+                postDict = {
+                    "username" : post[0],
+                    "id" : post[1],
+                    "content" : post[2],
+                    "time_created" : post[3]
+                    }
+                post_list.append(postDict)
+            return Response(json.dumps(post_list, default=str),
+                mimetype='application/json',
+                status=200)
+        except mariadb.DataError: 
+            print('Something went wrong with your data')
+        except mariadb.OperationalError:
+            print('Something wrong with the connection')
+        except mariadb.ProgrammingError:
+            print('Your query was wrong')
+        except mariadb.IntegrityError:
+            print('Your query would have broken the database and we stopped it')
+        except mariadb.InterfaceError:
+            print('Something wrong with database interface')
+        except:
+            print('Something went wrong')
+        finally:
+            if(cursor != None):
+                cursor.close()
+                print('cursor closed')
+            else:
+                print('no cursor to begin with')
+            if(conn != None):   
+                conn.rollback()
+                conn.close()
+                print('connection closed')
+            else:
+                print('the connection never opened, nothing to close')
 
-        cursor.close()
-        conn.close()
-        return Response(json.dumps(post_list, default=str),
-                                    mimetype='application/json',
-                                    status=200)
+
     elif request.method == 'POST':
         post_data = request.json
         print(post_data)
         post_username = post_data.get("username")
         post_content = post_data.get("content")
         post_date = post_data.get("time_created")
-        conn = mariadb.connect(user=dbcreds.user,password=dbcreds.password,host=dbcreds.host,port=dbcreds.port,database=dbcreds.database)
-        cursor = conn.cursor()
-        cursor.execute("INSERT INTO posts(username, content, time_created) VALUES (?,?,?)",[post_username, post_content, post_date])
-        if(cursor.rowcount ==1):
-            conn.commit()
-            cursor.close()
-            conn.close()
-            return Response("Sucessful post created",
-                        mimetype='text/plain',
-                        status=200)
-        else:
-            return Response("Something went wrong, post not created",
-                            mimetype="text/plain",
-                            status=400)
-
+        try:
+            conn = mariadb.connect(user=dbcreds.user,password=dbcreds.password,host=dbcreds.host,port=dbcreds.port,database=dbcreds.database)
+            cursor = conn.cursor()
+            cursor.execute("INSERT INTO posts(username, content, time_created) VALUES (?,?,?)",[post_username, post_content, post_date])
+            if(cursor.rowcount ==1):
+                conn.commit()
+                cursor.close()
+                conn.close()
+                return Response("Sucessful post created",
+                            mimetype='text/plain',
+                            status=200)
+            else:
+                return Response("Something went wrong, post not created",
+                                mimetype="text/plain",
+                                status=400)
+        except mariadb.DataError: 
+            print('Something went wrong with your data')
+        except mariadb.OperationalError:
+            print('Something wrong with the connection')
+        except mariadb.ProgrammingError:
+            print('Your query was wrong')
+        except mariadb.IntegrityError:
+            print('Your query would have broken the database and we stopped it')
+        except mariadb.InterfaceError:
+            print('Something wrong with database interface')
+        except:
+            print('Something went wrong')
+        finally:
+            if(cursor != None):
+                cursor.close()
+                print('cursor closed')
+            else:
+                print('no cursor to begin with')
+            if(conn != None):   
+                conn.rollback()
+                conn.close()
+                print('connection closed')
+            else:
+                print('the connection never opened, nothing to close')
 
     elif request.method == 'PATCH':
         edited_data = request.json
